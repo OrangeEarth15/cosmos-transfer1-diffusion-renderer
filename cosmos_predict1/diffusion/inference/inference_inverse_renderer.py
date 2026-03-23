@@ -27,7 +27,7 @@ from cosmos_predict1.diffusion.inference.diffusion_renderer_utils.dataloader_uti
 from cosmos_predict1.utils import distributed, log, misc
 from cosmos_predict1.utils.io import save_video, save_image_or_video
 
-torch.enable_grad(False)
+torch.enable_grad(False) # 全局关闭梯度计算
 
 
 def str2bool(v):
@@ -133,11 +133,16 @@ def parse_arguments() -> argparse.Namespace:
 
 def demo(args: argparse.Namespace):
     """Run diffusion renderer inference.
-    
+
     Args:
         args: Command line arguments
     """
     misc.set_random_seed(args.seed)
+
+    # Reset GPU memory stats for accurate peak measurement
+    if torch.cuda.is_available():
+        torch.cuda.reset_peak_memory_stats()
+        torch.cuda.empty_cache()
 
     # Initialize renderer pipeline
     pipeline = DiffusionRendererPipeline(
@@ -190,11 +195,14 @@ def demo(args: argparse.Namespace):
             
             # Save output as individual frames
             if args.save_image:
-                video_relative_base_name = data_batch['clip_name'][0]
+                video_relative_base_name = data_batch['clip_name'][0].replace("/", "__").strip("_/")
+                if not video_relative_base_name:
+                    video_relative_base_name = "video"
                 chunk_ind_str = data_batch['chunk_index'][0] if 'chunk_index' in data_batch else '0000'
                 for ind in range(output.shape[0]):  # (T, H, W, C)
-                    save_path = os.path.join(args.video_save_folder, "gbuffer_frames", f"{video_relative_base_name}/{chunk_ind_str}.{ind:04d}.{gbuffer_pass}.jpg")
-                    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+                    save_dir = os.path.join(args.video_save_folder, "gbuffer_frames", video_relative_base_name)
+                    os.makedirs(save_dir, exist_ok=True)
+                    save_path = os.path.join(save_dir, f"{chunk_ind_str}.{ind:04d}.{gbuffer_pass}.jpg")
                     save_image_or_video(
                         video_save_path=save_path,
                         video=output[ind:ind + 1, ...],
@@ -214,6 +222,12 @@ def demo(args: argparse.Namespace):
                     video_save_quality=5,
                 )
                 log.info(f"Saved video to {video_save_path}")
+
+    # Report peak GPU memory usage
+    if torch.cuda.is_available():
+        peak_memory_gb = torch.cuda.max_memory_allocated() / (1024**3)
+        total_memory_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+        print(f"[VRAM_STATS] Peak GPU Memory: {peak_memory_gb:.2f}GB / {total_memory_gb:.2f}GB")
 
 
 if __name__ == "__main__":

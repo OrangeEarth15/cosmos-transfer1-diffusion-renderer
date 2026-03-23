@@ -172,15 +172,20 @@ ENV_LIGHT_PATH_LIST = [
 
 def demo(args: argparse.Namespace):
     """Run diffusion renderer inference.
-    
+
     Args:
         args: Command line arguments
     """
 
     if isinstance(args.envlight_ind, int):
         args.envlight_ind = [args.envlight_ind]
-    
+
     misc.set_random_seed(args.seed)
+
+    # Reset GPU memory stats for accurate peak measurement
+    if torch.cuda.is_available():
+        torch.cuda.reset_peak_memory_stats()
+        torch.cuda.empty_cache()
 
     # Initialize renderer pipeline
     pipeline = DiffusionRendererPipeline(
@@ -282,6 +287,12 @@ def demo(args: argparse.Namespace):
                 video_save_quality=5,
             )
             log.info(f"Saved video to {video_save_path}")
+
+    # Report peak GPU memory usage
+    if torch.cuda.is_available():
+        peak_memory_gb = torch.cuda.max_memory_allocated() / (1024**3)
+        total_memory_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+        print(f"[VRAM_STATS] Peak GPU Memory: {peak_memory_gb:.2f}GB / {total_memory_gb:.2f}GB")
 
 
 if __name__ == "__main__":

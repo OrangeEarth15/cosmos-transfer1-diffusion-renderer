@@ -1,4 +1,7 @@
-asset/.DS_Store
-asset/examples/.DS_Store
-asset/examples/hdri_examples/.DS_Store
-asset/examples/image_examples/.DS_Store
+# Python
+__pycache__/
+
+# Project specific
+checkpoints/          # 模型权重太大
+experiments/exp_*/    # 实验输出数据
+experiments/*.out     # 实验日志
